@@ -78,7 +78,7 @@ export default function App() {
 
   const sendToBackend = async (isbnToSend, titleToSend) => {
     try {
-      const response = await fetch("https//testocr.pythonanywhere.com/save_title", {
+      const response = await fetch("https://testocr.pythonanywhere.com/save_title", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isbn: isbnToSend, b_title: titleToSend }),
