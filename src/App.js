@@ -1,5 +1,3 @@
-// 
-
 import { useState } from "react";
 import Tesseract from "tesseract.js";
 
@@ -12,6 +10,8 @@ export default function App() {
   const [loadingText, setLoadingText] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
   const [isbnNotFound, setIsbnNotFound] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [isSaved, setIsSaved] = useState(false); // ✅ new state
 
   const handleScanClick = () => {
     const input = document.createElement("input");
@@ -33,16 +33,14 @@ export default function App() {
         const text = result.data.text;
         setLoadingText("Detecting ISBN...");
 
-        const match = text.match(
-          /97[89][-– ]?\d{1,5}[-– ]?\d{1,7}[-– ]?\d{1,7}[-– ]?\d/
-        );
+        const match = text.match(/97[89][-– ]?\d{1,5}[-– ]?\d{1,7}[-– ]?\d{1,7}[-– ]?\d/);
         if (match) {
           const detectedIsbn = match[0].replace(/[-–\s]/g, "");
           setIsbn(detectedIsbn);
           setIsbnNotFound(false);
 
           try {
-            const response = await fetch("https://testocr.pythonanywhere.com/receive_isbn", {
+            const response = await fetch("http://192.168.1.7:5000/receive_isbn", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ isbn: detectedIsbn }),
@@ -53,17 +51,20 @@ export default function App() {
               setBookTitle(data.title);
               setShowManualInput(false);
               await sendToBackend(detectedIsbn, data.title);
+              setSaveMessage("✅ Saved successfully");
+              setIsSaved(true);
               setView("confirmation");
-              setTimeout(() => handleBack(), 1500);
             } else {
               setBookTitle("");
               setShowManualInput(true);
+              setIsSaved(false);
               setView("confirmation");
             }
           } catch (error) {
             console.error("Fetch error:", error);
             setBookTitle("");
             setShowManualInput(true);
+            setIsSaved(false);
             setView("confirmation");
           }
         } else {
@@ -78,7 +79,7 @@ export default function App() {
 
   const sendToBackend = async (isbnToSend, titleToSend) => {
     try {
-      const response = await fetch("https://testocr.pythonanywhere.com/save_title", {
+      const response = await fetch("http://192.168.1.7:5000/save_title", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isbn: isbnToSend, b_title: titleToSend }),
@@ -93,10 +94,10 @@ export default function App() {
   const handleSendManual = async () => {
     if (isbn && manualTitle.trim() !== "") {
       await sendToBackend(isbn, manualTitle.trim());
-      alert("✅ Saved successfully");
-      handleBack();
+      setSaveMessage("✅ Saved successfully");
+      setIsSaved(true); // ✅ Hide button
     } else {
-      alert("❗ Please enter book title");
+      setSaveMessage("❗ Please enter book title");
     }
   };
 
@@ -108,6 +109,8 @@ export default function App() {
     setManualTitle("");
     setShowManualInput(false);
     setIsbnNotFound(false);
+    setSaveMessage("");
+    setIsSaved(false);
   };
 
   return (
@@ -133,9 +136,7 @@ export default function App() {
 
         {view === "confirmation" && (
           <>
-            {photo && (
-              <img src={photo} alt="Scanned Book" style={styles.image} />
-            )}
+            {photo && <img src={photo} alt="Scanned Book" style={styles.image} />}
             {isbnNotFound ? (
               <>
                 <h3 style={{ color: "red" }}>❗ ISBN not found</h3>
@@ -148,25 +149,31 @@ export default function App() {
                 <h3 style={{ color: "#28a745" }}>✅ ISBN Detected</h3>
                 <p><strong>ISBN:</strong> {isbn}</p>
 
-                {bookTitle && (
-                  <>
-                    <p><strong>Book Title:</strong> {bookTitle}</p>
-                  </>
-                )}
+                {bookTitle && <p><strong>Book Title:</strong> {bookTitle}</p>}
 
                 {showManualInput && (
                   <>
-                    <p style={{ marginTop: "10px" }}>Enter Book Title:</p>
+                    <p>Enter Book Title:</p>
                     <input
                       value={manualTitle}
                       onChange={(e) => setManualTitle(e.target.value)}
                       placeholder="Enter book title"
                       style={styles.input}
                     />
-                    <button style={styles.saveButton} onClick={handleSendManual}>
-                      🚀 Save
-                    </button>
+                    {!isSaved && (
+                      <button style={styles.saveButton} onClick={handleSendManual}>
+                        🚀 Save
+                      </button>
+                    )}
                   </>
+                )}
+
+                {saveMessage && <p style={{ marginTop: 12, color: "green" }}>{saveMessage}</p>}
+
+                {(bookTitle || isSaved) && (
+                  <button style={styles.secondaryButton} onClick={handleBack}>
+                    🔙 Return to Scanner
+                  </button>
                 )}
               </>
             )}
@@ -174,7 +181,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Spinner Animation */}
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
