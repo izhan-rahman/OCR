@@ -40,7 +40,7 @@ export default function App() {
           setIsbnNotFound(false);
 
           try {
-            const response = await fetch("http://192.168.1.7:5000/receive_isbn", {
+            const response = await fetch("https://192.168.1.7:5000/receive_isbn", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ isbn: detectedIsbn }),
@@ -79,7 +79,7 @@ export default function App() {
 
   const sendToBackend = async (isbnToSend, titleToSend) => {
     try {
-      const response = await fetch("http://192.168.1.7:5000/save_title", {
+      const response = await fetch("https://192.168.1.7:5000/save_title", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isbn: isbnToSend, b_title: titleToSend }),
