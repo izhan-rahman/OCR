@@ -149,14 +149,11 @@ export default function App() {
             {isbnNotFound ? (
               <>
                 <h3 style={{ color: "red" }}>❗ ISBN not found</h3>
-
-                <button style={styles.secondaryButton} onClick={handleBack}>
-                  🔙 Return to Scanner
-                </button>
-
-                <button style={styles.manualButton} onClick={() => setShowManualInput(true)}>
-                  ✍️ Enter Manually
-                </button>
+                {!showManualInput && (
+                  <button style={styles.manualButton} onClick={() => setShowManualInput(true)}>
+                    ✍️ Enter Manually
+                  </button>
+                )}
               </>
             ) : (
               <>
@@ -194,11 +191,9 @@ export default function App() {
 
             {saveMessage && <p style={{ marginTop: 12, color: "green" }}>{saveMessage}</p>}
 
-            {(bookTitle || isSaved) && !isbnNotFound && (
-              <button style={styles.secondaryButton} onClick={handleBack}>
-                🔙 Return to Scanner
-              </button>
-            )}
+            <button style={styles.secondaryButton} onClick={handleBack}>
+              🔙 Return to Scanner
+            </button>
           </>
         )}
       </div>
@@ -279,7 +274,7 @@ const styles = {
     padding: "10px 20px",
     fontSize: "14px",
     cursor: "pointer",
-    marginTop: "10px",
+    marginTop: "20px",
   },
   manualButton: {
     background: "#ffc107",
