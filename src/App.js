@@ -5,6 +5,7 @@ export default function App() {
   const [view, setView] = useState("scan");
   const [photo, setPhoto] = useState(null);
   const [isbn, setIsbn] = useState("");
+  const [manualIsbn, setManualIsbn] = useState("");
   const [bookTitle, setBookTitle] = useState("");
   const [manualTitle, setManualTitle] = useState("");
   const [loadingText, setLoadingText] = useState("");
@@ -58,20 +59,21 @@ export default function App() {
               setBookTitle("");
               setShowManualInput(false);
               setIsSaved(false);
-              setView("confirmation");
               setIsbnNotFound(true);
+              setView("confirmation");
             }
           } catch (error) {
             console.error("Fetch error:", error);
             setBookTitle("");
             setShowManualInput(false);
             setIsSaved(false);
-            setView("confirmation");
             setIsbnNotFound(true);
+            setView("confirmation");
           }
         } else {
           setIsbn("");
           setIsbnNotFound(true);
+          setShowManualInput(false);
           setView("confirmation");
         }
       }
@@ -94,12 +96,15 @@ export default function App() {
   };
 
   const handleSendManual = async () => {
-    if (isbn && manualTitle.trim() !== "") {
-      await sendToBackend(isbn, manualTitle.trim());
+    const usedIsbn = isbn || manualIsbn.trim();
+    const usedTitle = manualTitle.trim();
+
+    if (usedIsbn && usedTitle) {
+      await sendToBackend(usedIsbn, usedTitle);
       setSaveMessage("✅ Saved successfully");
       setIsSaved(true);
     } else {
-      setSaveMessage("❗ Please enter book title");
+      setSaveMessage("❗ Please enter both ISBN and book title");
     }
   };
 
@@ -107,6 +112,7 @@ export default function App() {
     setView("scan");
     setPhoto(null);
     setIsbn("");
+    setManualIsbn("");
     setBookTitle("");
     setManualTitle("");
     setShowManualInput(false);
@@ -139,20 +145,37 @@ export default function App() {
         {view === "confirmation" && (
           <>
             {photo && <img src={photo} alt="Scanned Book" style={styles.image} />}
-            {isbnNotFound && !showManualInput && (
+
+            {isbnNotFound ? (
               <>
                 <h3 style={{ color: "red" }}>❗ ISBN not found</h3>
+
                 <button style={styles.secondaryButton} onClick={handleBack}>
                   🔙 Return to Scanner
                 </button>
+
                 <button style={styles.manualButton} onClick={() => setShowManualInput(true)}>
-                  📝 Enter Manually
+                  ✍️ Enter Manually
                 </button>
+              </>
+            ) : (
+              <>
+                <h3 style={{ color: "#28a745" }}>✅ ISBN Detected</h3>
+                <p><strong>ISBN:</strong> {isbn}</p>
+                {bookTitle && <p><strong>Book Title:</strong> {bookTitle}</p>}
               </>
             )}
 
             {showManualInput && (
               <>
+                <p>Enter ISBN:</p>
+                <input
+                  value={manualIsbn}
+                  onChange={(e) => setManualIsbn(e.target.value)}
+                  placeholder="Enter ISBN"
+                  style={styles.input}
+                />
+
                 <p>Enter Book Title:</p>
                 <input
                   value={manualTitle}
@@ -160,6 +183,7 @@ export default function App() {
                   placeholder="Enter book title"
                   style={styles.input}
                 />
+
                 {!isSaved && (
                   <button style={styles.saveButton} onClick={handleSendManual}>
                     🚀 Save
@@ -168,19 +192,9 @@ export default function App() {
               </>
             )}
 
-            {!isbnNotFound && isbn && (
-              <>
-                <h3 style={{ color: "#28a745" }}>✅ ISBN Detected</h3>
-                <p><strong>ISBN:</strong> {isbn}</p>
-                {bookTitle && <p><strong>Book Title:</strong> {bookTitle}</p>}
-              </>
-            )}
+            {saveMessage && <p style={{ marginTop: 12, color: "green" }}>{saveMessage}</p>}
 
-            {saveMessage && (
-              <p style={{ marginTop: 12, color: isSaved ? "green" : "red" }}>{saveMessage}</p>
-            )}
-
-            {(bookTitle || isSaved || showManualInput) && (
+            {(bookTitle || isSaved) && !isbnNotFound && (
               <button style={styles.secondaryButton} onClick={handleBack}>
                 🔙 Return to Scanner
               </button>
