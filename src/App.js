@@ -8,6 +8,8 @@ export default function App() {
   const [manualIsbn, setManualIsbn] = useState("");
   const [bookTitle, setBookTitle] = useState("");
   const [manualTitle, setManualTitle] = useState("");
+  const [price, setPrice] = useState("");
+  const [quantity, setQuantity] = useState("");
   const [loadingText, setLoadingText] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
   const [isbnNotFound, setIsbnNotFound] = useState(false);
@@ -38,6 +40,7 @@ export default function App() {
         if (match) {
           const detectedIsbn = match[0].replace(/[-–\s]/g, "");
           setIsbn(detectedIsbn);
+          setManualIsbn(detectedIsbn);
           setIsbnNotFound(false);
 
           try {
@@ -50,14 +53,13 @@ export default function App() {
             const data = await response.json();
             if (data.title) {
               setBookTitle(data.title);
-              setShowManualInput(false);
-              await sendToBackend(detectedIsbn, data.title);
-              setSaveMessage("✅ Saved successfully");
-              setIsSaved(true);
+              setManualTitle(data.title);
+              setShowManualInput(true); // Always ask for price & quantity
               setView("confirmation");
             } else {
               setBookTitle("");
-              setShowManualInput(false);
+              setManualTitle("");
+              setShowManualInput(true);
               setIsSaved(false);
               setIsbnNotFound(true);
               setView("confirmation");
@@ -65,7 +67,7 @@ export default function App() {
           } catch (error) {
             console.error("Fetch error:", error);
             setBookTitle("");
-            setShowManualInput(false);
+            setShowManualInput(true);
             setIsSaved(false);
             setIsbnNotFound(true);
             setView("confirmation");
@@ -73,7 +75,7 @@ export default function App() {
         } else {
           setIsbn("");
           setIsbnNotFound(true);
-          setShowManualInput(false);
+          setShowManualInput(true);
           setView("confirmation");
         }
       }
@@ -81,12 +83,17 @@ export default function App() {
     input.click();
   };
 
-  const sendToBackend = async (isbnToSend, titleToSend) => {
+  const sendToBackend = async (isbnToSend, titleToSend, priceToSend = "", quantityToSend = "") => {
     try {
       const response = await fetch("https://testocr.pythonanywhere.com/save_title", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isbn: isbnToSend, b_title: titleToSend }),
+        body: JSON.stringify({
+          isbn: isbnToSend,
+          b_title: titleToSend,
+          price: priceToSend,
+          quantity: quantityToSend,
+        }),
       });
       const data = await response.json();
       console.log("✅ Saved:", data);
@@ -96,15 +103,17 @@ export default function App() {
   };
 
   const handleSendManual = async () => {
-    const usedIsbn = isbn || manualIsbn.trim();
+    const usedIsbn = manualIsbn.trim();
     const usedTitle = manualTitle.trim();
+    const usedPrice = price.trim();
+    const usedQuantity = quantity.trim();
 
-    if (usedIsbn && usedTitle) {
-      await sendToBackend(usedIsbn, usedTitle);
+    if (usedIsbn && usedTitle && usedPrice && usedQuantity) {
+      await sendToBackend(usedIsbn, usedTitle, usedPrice, usedQuantity);
       setSaveMessage("✅ Saved successfully");
       setIsSaved(true);
     } else {
-      setSaveMessage("❗ Please enter both ISBN and book title");
+      setSaveMessage("❗ Please enter all fields");
     }
   };
 
@@ -115,6 +124,8 @@ export default function App() {
     setManualIsbn("");
     setBookTitle("");
     setManualTitle("");
+    setPrice("");
+    setQuantity("");
     setShowManualInput(false);
     setIsbnNotFound(false);
     setSaveMessage("");
@@ -149,11 +160,6 @@ export default function App() {
             {isbnNotFound ? (
               <>
                 <h3 style={{ color: "red" }}>❗ ISBN not found</h3>
-                {!showManualInput && (
-                  <button style={styles.manualButton} onClick={() => setShowManualInput(true)}>
-                    ✍️ Enter Manually
-                  </button>
-                )}
               </>
             ) : (
               <>
@@ -163,21 +169,41 @@ export default function App() {
               </>
             )}
 
-            {showManualInput && (
+            {(showManualInput || (isbn && bookTitle)) && (
               <>
-                <p>Enter ISBN:</p>
+                {(isbnNotFound || showManualInput) && (
+                  <>
+                    <p>Enter ISBN:</p>
+                    <input
+                      value={manualIsbn}
+                      onChange={(e) => setManualIsbn(e.target.value)}
+                      placeholder="Enter ISBN"
+                      style={styles.input}
+                    />
+
+                    <p>Enter Book Title:</p>
+                    <input
+                      value={manualTitle}
+                      onChange={(e) => setManualTitle(e.target.value)}
+                      placeholder="Enter book title"
+                      style={styles.input}
+                    />
+                  </>
+                )}
+
+                <p>Enter Price:</p>
                 <input
-                  value={manualIsbn}
-                  onChange={(e) => setManualIsbn(e.target.value)}
-                  placeholder="Enter ISBN"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="Enter price"
                   style={styles.input}
                 />
 
-                <p>Enter Book Title:</p>
+                <p>Enter Quantity:</p>
                 <input
-                  value={manualTitle}
-                  onChange={(e) => setManualTitle(e.target.value)}
-                  placeholder="Enter book title"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  placeholder="Enter quantity"
                   style={styles.input}
                 />
 
