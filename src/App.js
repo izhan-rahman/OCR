@@ -6,13 +6,12 @@ export default function App() {
   const [photo, setPhoto] = useState(null);
   const [isbn, setIsbn] = useState("");
   const [manualIsbn, setManualIsbn] = useState("");
-  const [bookTitle, setBookTitle] = useState("");
+  const [titleFromBackend, setTitleFromBackend] = useState("");
   const [manualTitle, setManualTitle] = useState("");
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("");
+  const [showManualTitle, setShowManualTitle] = useState(false);
   const [loadingText, setLoadingText] = useState("");
-  const [showManualInput, setShowManualInput] = useState(false);
-  const [isbnNotFound, setIsbnNotFound] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaved, setIsSaved] = useState(false);
 
@@ -27,8 +26,8 @@ export default function App() {
         const url = URL.createObjectURL(file);
         setPhoto(url);
         setView("saving");
-
         setLoadingText("Extracting text...");
+
         const result = await Tesseract.recognize(url, "eng", {
           logger: (m) => console.log(m),
         });
@@ -40,80 +39,75 @@ export default function App() {
         if (match) {
           const detectedIsbn = match[0].replace(/[-–\s]/g, "");
           setIsbn(detectedIsbn);
-          setManualIsbn(detectedIsbn);
-          setIsbnNotFound(false);
-
-          try {
-            const response = await fetch("https://testocr.pythonanywhere.com/receive_isbn", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ isbn: detectedIsbn }),
-            });
-
-            const data = await response.json();
-            if (data.title) {
-              setBookTitle(data.title);
-              setManualTitle(data.title);
-              setShowManualInput(true); // Always ask for price & quantity
-              setView("confirmation");
-            } else {
-              setBookTitle("");
-              setManualTitle("");
-              setShowManualInput(true);
-              setIsSaved(false);
-              setIsbnNotFound(true);
-              setView("confirmation");
-            }
-          } catch (error) {
-            console.error("Fetch error:", error);
-            setBookTitle("");
-            setShowManualInput(true);
-            setIsSaved(false);
-            setIsbnNotFound(true);
-            setView("confirmation");
-          }
+          fetchTitle(detectedIsbn);
         } else {
-          setIsbn("");
-          setIsbnNotFound(true);
-          setShowManualInput(true);
-          setView("confirmation");
+          setView("manualIsbn");
         }
       }
     };
     input.click();
   };
 
-  const sendToBackend = async (isbnToSend, titleToSend, priceToSend = "", quantityToSend = "") => {
+  const fetchTitle = async (isbnToUse) => {
+    try {
+      const response = await fetch("https://testocr.pythonanywhere.com/receive_isbn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isbn: isbnToUse }),
+      });
+
+      const data = await response.json();
+      setIsbn(isbnToUse);
+
+      if (data.title) {
+        setTitleFromBackend(data.title);
+        setManualTitle("");
+        setShowManualTitle(false);
+      } else {
+        setTitleFromBackend("");
+        setShowManualTitle(true);
+      }
+
+      setView("priceEntry");
+    } catch (error) {
+      console.error("❌ Fetch error:", error);
+      setTitleFromBackend("");
+      setShowManualTitle(true);
+      setView("priceEntry");
+    }
+  };
+
+  const handleManualIsbnFetch = () => {
+    const trimmedIsbn = manualIsbn.trim();
+    if (trimmedIsbn) {
+      fetchTitle(trimmedIsbn);
+    }
+  };
+
+  const sendToBackend = async () => {
+    const title = titleFromBackend || manualTitle;
+    if (!isbn || !title || !price || !quantity) {
+      return;
+    }
+
     try {
       const response = await fetch("https://testocr.pythonanywhere.com/save_title", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          isbn: isbnToSend,
-          b_title: titleToSend,
-          price: priceToSend,
-          quantity: quantityToSend,
+          isbn,
+          b_title: title,
+          price,
+          quantity,
         }),
       });
+
       const data = await response.json();
+      setIsSaved(true);
+      setSaveMessage("✅ Saved successfully");
       console.log("✅ Saved:", data);
     } catch (error) {
-      console.error("❌ Backend error:", error);
-    }
-  };
-
-  const handleSendManual = async () => {
-    const usedIsbn = manualIsbn.trim();
-    const usedTitle = manualTitle.trim();
-    const usedPrice = price.trim();
-    const usedQuantity = quantity.trim();
-
-    if (usedIsbn && usedTitle && usedPrice && usedQuantity) {
-      await sendToBackend(usedIsbn, usedTitle, usedPrice, usedQuantity);
-      setSaveMessage("✅ Saved successfully");
-      setIsSaved(true);
-    } else {
-      setSaveMessage("❗ Please enter all fields");
+      console.error("❌ Save error:", error);
     }
   };
 
@@ -122,14 +116,13 @@ export default function App() {
     setPhoto(null);
     setIsbn("");
     setManualIsbn("");
-    setBookTitle("");
+    setTitleFromBackend("");
     setManualTitle("");
     setPrice("");
     setQuantity("");
-    setShowManualInput(false);
-    setIsbnNotFound(false);
-    setSaveMessage("");
+    setShowManualTitle(false);
     setIsSaved(false);
+    setSaveMessage("");
   };
 
   return (
@@ -153,66 +146,64 @@ export default function App() {
           </>
         )}
 
-        {view === "confirmation" && (
+        {view === "manualIsbn" && (
           <>
-            {photo && <img src={photo} alt="Scanned Book" style={styles.image} />}
+            <h3 style={{ color: "red" }}>❗ ISBN not found</h3>
+            <p>Enter ISBN manually:</p>
+            <input
+              value={manualIsbn}
+              onChange={(e) => setManualIsbn(e.target.value)}
+              placeholder="Enter ISBN"
+              style={styles.input}
+            />
+            <button style={styles.primaryButton} onClick={handleManualIsbnFetch}>
+              🔍 Fetch Title
+            </button>
+          </>
+        )}
 
-            {isbnNotFound ? (
+        {view === "priceEntry" && (
+          <>
+            {photo && <img src={photo} alt="Book" style={styles.image} />}
+            <p><strong>ISBN:</strong> {isbn}</p>
+            {titleFromBackend && (
+              <p><strong>Title:</strong> {titleFromBackend}</p>
+            )}
+
+            {showManualTitle && (
               <>
-                <h3 style={{ color: "red" }}>❗ ISBN not found</h3>
-              </>
-            ) : (
-              <>
-                <h3 style={{ color: "#28a745" }}>✅ ISBN Detected</h3>
-                <p><strong>ISBN:</strong> {isbn}</p>
-                {bookTitle && <p><strong>Book Title:</strong> {bookTitle}</p>}
+                <p>Enter Book Title:</p>
+                <input
+                  value={manualTitle}
+                  onChange={(e) => setManualTitle(e.target.value)}
+                  placeholder="Enter title"
+                  style={styles.input}
+                />
               </>
             )}
 
-            {(showManualInput || (isbn && bookTitle)) && (
-              <>
-                {(isbnNotFound || showManualInput) && (
-                  <>
-                    <p>Enter ISBN:</p>
-                    <input
-                      value={manualIsbn}
-                      onChange={(e) => setManualIsbn(e.target.value)}
-                      placeholder="Enter ISBN"
-                      style={styles.input}
-                    />
+            <p>Enter Price:</p>
+            <input
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="Enter price"
+              style={styles.input}
+            />
 
-                    <p>Enter Book Title:</p>
-                    <input
-                      value={manualTitle}
-                      onChange={(e) => setManualTitle(e.target.value)}
-                      placeholder="Enter book title"
-                      style={styles.input}
-                    />
-                  </>
-                )}
+            <p>Enter Quantity:</p>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              placeholder="Enter quantity"
+              style={styles.input}
+            />
 
-                <p>Enter Price:</p>
-                <input
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="Enter price"
-                  style={styles.input}
-                />
-
-                <p>Enter Quantity:</p>
-                <input
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="Enter quantity"
-                  style={styles.input}
-                />
-
-                {!isSaved && (
-                  <button style={styles.saveButton} onClick={handleSendManual}>
-                    🚀 Save
-                  </button>
-                )}
-              </>
+            {!isSaved && (
+              <button style={styles.saveButton} onClick={sendToBackend}>
+                💾 Save
+              </button>
             )}
 
             {saveMessage && <p style={{ marginTop: 12, color: "green" }}>{saveMessage}</p>}
@@ -274,7 +265,6 @@ const styles = {
     marginBottom: "12px",
   },
   primaryButton: {
-    marginTop: "20px",
     background: "#007bff",
     color: "#fff",
     border: "none",
@@ -282,6 +272,7 @@ const styles = {
     padding: "14px 28px",
     fontSize: "16px",
     cursor: "pointer",
+    marginTop: "10px",
   },
   saveButton: {
     background: "#28a745",
@@ -301,16 +292,6 @@ const styles = {
     fontSize: "14px",
     cursor: "pointer",
     marginTop: "20px",
-  },
-  manualButton: {
-    background: "#ffc107",
-    color: "#000",
-    border: "none",
-    borderRadius: "10px",
-    padding: "10px 20px",
-    fontSize: "14px",
-    cursor: "pointer",
-    marginTop: "10px",
   },
   spinner: {
     margin: "20px auto",
