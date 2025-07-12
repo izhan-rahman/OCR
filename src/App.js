@@ -1,56 +1,21 @@
+
 import { useState } from "react";
-import Tesseract from "tesseract.js";
+import BarcodeScanner from "./components/BarcodeScanner";
 
 export default function App() {
   const [view, setView] = useState("scan");
-  const [photo, setPhoto] = useState(null);
   const [isbn, setIsbn] = useState("");
-  const [manualIsbn, setManualIsbn] = useState("");
   const [titleFromBackend, setTitleFromBackend] = useState("");
   const [manualTitle, setManualTitle] = useState("");
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("");
   const [showManualTitle, setShowManualTitle] = useState(false);
-  const [loadingText, setLoadingText] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaved, setIsSaved] = useState(false);
 
-  const handleScanClick = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.capture = "environment";
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        setPhoto(url);
-        setView("saving");
-        setLoadingText("Extracting text...");
-
-        const result = await Tesseract.recognize(url, "eng", {
-          logger: (m) => console.log(m),
-        });
-
-        const text = result.data.text;
-        setLoadingText("Detecting ISBN...");
-
-        const match = text.match(/97[89][-– ]?\d{1,5}[-– ]?\d{1,7}[-– ]?\d{1,7}[-– ]?\d/);
-        if (match) {
-          const detectedIsbn = match[0].replace(/[-–\s]/g, "");
-          setIsbn(detectedIsbn);
-          fetchTitle(detectedIsbn);
-        } else {
-          setView("manualIsbn");
-        }
-      }
-    };
-    input.click();
-  };
-
   const fetchTitle = async (isbnToUse) => {
     try {
-      const response = await fetch("https://testocr.pythonanywhere.com/receive_isbn", {
+      const response = await fetch("https://testocrtest.pythonanywhere.com/receive_isbn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isbn: isbnToUse }),
@@ -77,29 +42,15 @@ export default function App() {
     }
   };
 
-  const handleManualIsbnFetch = () => {
-    const trimmedIsbn = manualIsbn.trim();
-    if (trimmedIsbn) {
-      fetchTitle(trimmedIsbn);
-    }
-  };
-
   const sendToBackend = async () => {
     const title = titleFromBackend || manualTitle;
-    if (!isbn || !title || !price || !quantity) {
-      return;
-    }
+    if (!isbn || !title || !price || !quantity) return;
 
     try {
-      const response = await fetch("https://testocr.pythonanywhere.com/save_title", {
+      const response = await fetch("https://testocrtest.pythonanywhere.com/save_title", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          isbn,
-          b_title: title,
-          price,
-          quantity,
-        }),
+        body: JSON.stringify({ isbn, b_title: title, price, quantity }),
       });
 
       const data = await response.json();
@@ -113,9 +64,7 @@ export default function App() {
 
   const handleBack = () => {
     setView("scan");
-    setPhoto(null);
     setIsbn("");
-    setManualIsbn("");
     setTitleFromBackend("");
     setManualTitle("");
     setPrice("");
@@ -131,44 +80,34 @@ export default function App() {
         {view === "scan" && (
           <>
             <h1 style={styles.header}>📚 ISBN Scanner</h1>
-            <p style={styles.subText}>Scan a book's ISBN from a photo</p>
-            <button style={styles.primaryButton} onClick={handleScanClick}>
-              📷 Take Photo
+            <p style={styles.subText}>Point your camera at the barcode</p>
+            <button
+              style={styles.primaryButton}
+              onClick={() => setView("liveScanner")}
+            >
+              🎦 Start Live Scanner
             </button>
           </>
         )}
 
-        {view === "saving" && (
+        {view === "liveScanner" && (
           <>
-            <div style={styles.spinner}></div>
-            <h3>Processing...</h3>
-            <p>{loadingText}</p>
-          </>
-        )}
-
-        {view === "manualIsbn" && (
-          <>
-            <h3 style={{ color: "red" }}>❗ ISBN not found</h3>
-            <p>Enter ISBN manually:</p>
-            <input
-              value={manualIsbn}
-              onChange={(e) => setManualIsbn(e.target.value)}
-              placeholder="Enter ISBN"
-              style={styles.input}
+            <h3>📷 Live Barcode Scanner</h3>
+            <BarcodeScanner
+              onDetected={(scannedIsbn) => {
+                fetchTitle(scannedIsbn);
+              }}
             />
-            <button style={styles.primaryButton} onClick={handleManualIsbnFetch}>
-              🔍 Fetch Title
+            <button style={styles.secondaryButton} onClick={handleBack}>
+              🔙 Return to Scanner
             </button>
           </>
         )}
 
         {view === "priceEntry" && (
           <>
-            {photo && <img src={photo} alt="Book" style={styles.image} />}
             <p><strong>ISBN:</strong> {isbn}</p>
-            {titleFromBackend && (
-              <p><strong>Title:</strong> {titleFromBackend}</p>
-            )}
+            {titleFromBackend && <p><strong>Title:</strong> {titleFromBackend}</p>}
 
             {showManualTitle && (
               <>
@@ -214,13 +153,6 @@ export default function App() {
           </>
         )}
       </div>
-
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }
@@ -250,11 +182,6 @@ const styles = {
   },
   subText: {
     color: "#666",
-    marginBottom: "20px",
-  },
-  image: {
-    width: "180px",
-    borderRadius: "16px",
     marginBottom: "20px",
   },
   input: {
@@ -292,14 +219,5 @@ const styles = {
     fontSize: "14px",
     cursor: "pointer",
     marginTop: "20px",
-  },
-  spinner: {
-    margin: "20px auto",
-    border: "4px solid #f3f3f3",
-    borderTop: "4px solid #007bff",
-    borderRadius: "50%",
-    width: "40px",
-    height: "40px",
-    animation: "spin 1s linear infinite",
   },
 };
